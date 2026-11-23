@@ -1,8 +1,14 @@
 # Nawia
 
-Nawia is a laboratory database and metadata management tool for organizing sample information, laboratory processing data, and sequencing records.
+Nawia is a laboratory database and metadata management tool for organizing sample information, laboratory processing data, and sequencing records specifically for ancientDNA research projects. It is being built with mainly human aDNA data in mind, but the goal is to abstract functionalities to seamlessly work with any kind of vertebrate aDNA data.
 
 > Nawia is under active development and is not yet ready for production use.
+> To do:
+>
+> - Add a CLI function and a web interface for tool's configuration;
+> - Provide different example schemas and configuration files (other than the default, human-data focused one),
+> - Create a function that aids the creation of a custom schema and setup on the remote database;
+> - When the sub-tool "Eager-helper" (temporary name) will be ready, add it to the dependencies and define the logic to create input files and output directories.
 
 ## Features
 
@@ -26,31 +32,11 @@ Nawia is implemented in Python and uses:
 
 ## Installation
 
-Python 3.11 or later is recommended.
-
-From the repository root, create a virtual environment and install the project:
-
-```bash
-python -m venv .venv
-```
-
-Activate the environment:
-
-```powershell
-# Windows PowerShell
-.venv\Scripts\Activate.ps1
-```
-
-```bash
-# Linux or macOS
-source .venv/bin/activate
-```
-
-Install Nawia:
+Python 3.11 or later is recommended. Install Nawia:
 
 ```bash
 python -m pip install --upgrade pip
-python -m pip install .
+pip install git+https://github.com/path/to/Nawia .
 ```
 
 ## Configuration
@@ -65,9 +51,9 @@ Nawia reads database and project settings from `config.json`. Copy or adapt `tem
 - Default values
 - Filename parsing rules for users
 
-An example configuration is available in `config.json`.
+Right now `config.json` shows a default configuration, but it will be changed into an empty configuration file Database credentials are requested through the Streamlit interface and are not stored in the repository configuration file, but the database address will be saved.
 
-Database credentials are requested through the Streamlit interface and are not stored in the repository configuration file.
+> We are planning to add both a CLI function and a Web Interface page for easier configuration! Stay tuned for updates.
 
 ## Running Nawia
 
@@ -79,12 +65,6 @@ After installing the package, run:
 nawia web_interface
 ```
 
-You can also launch Streamlit directly:
-
-```bash
-streamlit run nawia/app_streamlit.py
-```
-
 The interface will print a local URL, usually `http://localhost:8501`.
 
 ### Command-line help
@@ -93,25 +73,14 @@ The interface will print a local URL, usually `http://localhost:8501`.
 nawia --help
 ```
 
-### Parsing files
-
-The parser command can inspect FASTQ or BAM files using the filename rules configured for a user:
-
-```bash
-nawia parse --user <username> --fastq <folder>
-nawia parse --user <username> --bam <folder>
-```
-
-Add `--dry-run` to preview actions without updating the database.
-
 ## Database setup
 
-SQL files in the `sql/` directory provide schema and seed material:
+SQL files in the `sql/` directory provide (at the moment) schema and seed material:
 
 - `sql/schema.sql` contains the database schema
 - `sql/seed_test.sql` contains test data
 
-Before first use, configure PostgreSQL and ensure the schemas referenced by `config.json` exist.
+The idea of the schema files is to help you configure your PostgreSQL or mySQL database: you can use that file or upload your own before the first use, but please ensure that the schemas hierarchies, table names and (useful) column names referenced by `config.json` exist.
 
 ## Project structure
 
