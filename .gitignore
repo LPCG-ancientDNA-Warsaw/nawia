@@ -1,5 +1,5 @@
 .env
-*/kampos/__pycache__
+*/nawia/__pycache__
 *.log
 sql/seed_db.sql
 tests/test_upload_excel.xlsx

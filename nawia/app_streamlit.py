@@ -1,6 +1,6 @@
 from psycopg2 import OperationalError
 import streamlit as st
-from db_manager import LabDatabase
+from nawia.db_manager import LabDatabase
 import pandas as pd
 import glob
 import os
@@ -261,7 +261,7 @@ base = Path(__file__).resolve().parent.parent
 logo = base / "static" / "LPiGK_transparent.png"
 page_icon = base / "static" / "transparent_LPCG_logo.png"
 
-st.set_page_config(page_title = "Kampos: Lab Database Portal", layout = "wide", page_icon = page_icon)
+st.set_page_config(page_title = "Nawia: Lab Database Portal", layout = "wide", page_icon = page_icon)
 st.logo(logo, size = "large", icon_image = page_icon)
 
 col1, col2 = st.columns([1, 3])
@@ -269,7 +269,7 @@ with col1:
     st.image(logo, width = 800)
 with col2:
     st.markdown("#")
-    st.title("Kampos: Keep All Metadata Properly and Orderly Stored")
+    st.title("Nawia: Keep All Metadata Properly and Orderly Stored")
     st.text("v0.1, by Flavia Leotta (2026)")
 st.subheader("", divider = 'orange')
 

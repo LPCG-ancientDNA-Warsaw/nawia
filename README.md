@@ -1,39 +1,130 @@
-﻿# Kampos
-#### Documentation and tool still on development.
+# Nawia
 
-This is the repository for Kampos* (*temporary name), the tool we are building to manage our samples database. This is still a big work in progress, so it is not ready for use. Moreover, collaborators are free to partecipate to the project by forking this repository, but please refrain from changing the core logic of this tool.
+Nawia is a laboratory database and metadata management tool for organizing sample information, laboratory processing data, and sequencing records.
 
-### Dependencies
-I have yet to prepare a file called "requirements.txt" (It will be the next thing I will do) but you have to make sure to install the dependencies required by Kampos prior to running it. Please check the file <code>pyproject.toml</code> and, at least for now, manually install the dependencies.
+> Nawia is under active development and is not yet ready for production use.
 
-### Connecting to our database
+## Features
 
-At the moment, the <code>config.json</code> file contains all the info required to connect to the database used by LPCG: the idea is to make this tool as general as possible, so in the future the tool will only come with an empty .json file (and a default_config.json one) that will need to be configured and initialized by the user.
+- Browse and search laboratory sample records
+- View sample details across related database tables
+- Edit supported database records through the web interface
+- Upload sample data from Excel templates
+- Export data to Excel, CSV, or SQLite
+- Create and manage PostgreSQL database backups
+- Parse FASTQ and BAM file metadata
+- Generate and manage project-specific Excel templates
 
-For the members of our laboratory, the PostgreSQL database provided by our IT department is reachable only through anthill 3.0, and, on top of that, you need an additional database account (only your anthill 3.0 account is not enough). Once you obtain the account from the IT department, go on the Terminal and open a bridge connection between your local computer - through anthill 3.0 - to the PostgreSQL database by running:
+## Technology
 
-```{bash}
-ssh -L 5432:dbengine003.cent.uw.edu.pl:22103 <your anthill 3.0 username>@pier23.cent1.uw.edu.pl
+Nawia is implemented in Python and uses:
+
+- Streamlit for the web interface
+- SQLAlchemy and PostgreSQL for database access
+- pandas for data processing
+- Plotly for interactive visualizations
+
+## Installation
+
+Python 3.11 or later is recommended.
+
+From the repository root, create a virtual environment and install the project:
+
+```bash
+python -m venv .venv
 ```
 
-This command will request you to provide your passowrd. Once done, you will have successfully created a bridge between your computer and the database. Now, you need to keep this bridge running: to avoid anthill 3.0 kicking you out for inactivity, type and execute <code>top</code>.
+Activate the environment:
 
-On another terminal window, move to the directory of kampos, and run its web view by executing:
-
-```{bash}
-streamlit run .\kampos\app_streamlit.py 
+```powershell
+# Windows PowerShell
+.venv\Scripts\Activate.ps1
 ```
 
-This will display a link that you can press on to open your browser and view the web version.
+```bash
+# Linux or macOS
+source .venv/bin/activate
+```
 
-### We are voting to change the name of the tool!
+Install Nawia:
 
-On another note, we are taking suggestions to change the name. You can edit this markdown file to add your ideas (please provide an explanation about it) and/or vote on the others'. There is no judgement involved, so give your best shot!
+```bash
+python -m pip install --upgrade pip
+python -m pip install .
+```
 
-- KAMPOS: The idea comes from the fact that this tool will help the user generate the metadata files required for the submission on public repositories. One of them is Poseidon. Poseidon's sacred animal is the horse, but as out laboratory works on mammals I didn't want this tool to look like it was referencing the research of only one member: so I though about using the Seahorse as symbol. The scientific name of the seahorse is Hippocampus, which is formed by the words Hippos (horse) and Kampos (sea monster). And there is where Kampos comes from.
-- Lustro: easy-to-pronounce word that means "5 years" (in latin), referencing to the 5 rotating backups, and "mirror" (in polish), referencing the fact that the tool gives a nice, clear, user view of the database.
-- Arkìo: archeio is the greek word for archive. It is pronounced as arhìo (almost like the polish ch sound) and with the accent on the i. This sound, though, could be hard to guess from the spelling and pronounced by romance-languages speaking people (yes, I am talking specifically about italian) so I would go with a slightly different spelling and pronunciation;
-- Testa: italian word for head, which references the fact that this tool helps us keep all important info in our mind.
-- Charybdis: mythological sea monster close to Sicily;
-- Nawia: the underworld in slavic mythology.
-  
+## Configuration
+
+Nawia reads database and project settings from `config.json`. Copy or adapt `templates/default_config.json` to configure:
+
+- PostgreSQL database name, host, and port
+- Project names and database schemas
+- Table mappings
+- Summary fields
+- Table relationships
+- Default values
+- Filename parsing rules for users
+
+An example configuration is available in `config.json`.
+
+Database credentials are requested through the Streamlit interface and are not stored in the repository configuration file.
+
+## Running Nawia
+
+### Web interface
+
+After installing the package, run:
+
+```bash
+nawia web_interface
+```
+
+You can also launch Streamlit directly:
+
+```bash
+streamlit run nawia/app_streamlit.py
+```
+
+The interface will print a local URL, usually `http://localhost:8501`.
+
+### Command-line help
+
+```bash
+nawia --help
+```
+
+### Parsing files
+
+The parser command can inspect FASTQ or BAM files using the filename rules configured for a user:
+
+```bash
+nawia parse --user <username> --fastq <folder>
+nawia parse --user <username> --bam <folder>
+```
+
+Add `--dry-run` to preview actions without updating the database.
+
+## Database setup
+
+SQL files in the `sql/` directory provide schema and seed material:
+
+- `sql/schema.sql` contains the database schema
+- `sql/seed_test.sql` contains test data
+
+Before first use, configure PostgreSQL and ensure the schemas referenced by `config.json` exist.
+
+## Project structure
+
+```text
+nawia/                 Python package and Streamlit application
+sql/                   Database schema and seed SQL
+static/                Logos and interface images
+templates/             Default configuration and Excel templates
+config.json            Active database and project configuration
+pyproject.toml         Package metadata and dependencies
+Singularity.def        Singularity container recipe
+```
+
+## Development status
+
+Nawia is currently in its early development phase. Interfaces, configuration formats, database behavior, and command names may change.

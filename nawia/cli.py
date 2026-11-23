@@ -1,10 +1,10 @@
 import argparse
 import sys
-from kampos.commands import web_interface, parse_folder, eager_helper
+from nawia.commands import web_interface, parse_folder, eager_helper
 
 def main():
     parser = argparse.ArgumentParser(
-        prog = "kampos", 
+        prog = "nawia",
         description = "Paleogenetics and Conservation Genetics Lab Management Tool"
     )
     

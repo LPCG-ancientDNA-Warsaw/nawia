@@ -1,17 +1,16 @@
 import os
 import re
 import json
-from kampos.db_manager import LabDatabase
+from nawia.db_manager import LabDatabase
 
-# Gestione Pysam (per evitare crash su Windows)
 try:
     import pysam
 except ImportError:
     pysam = None
 
 def get_user_config(user):
-    """Carica la regex dell'utente dal file JSON."""
-    # Assumiamo che il file sia nella stessa cartella del tool
+    """Get REGEX for each user"""
+
     config_path = os.path.join(os.path.dirname(__file__), "..", "config.json")
     try:
         with open(config_path, 'r') as f:

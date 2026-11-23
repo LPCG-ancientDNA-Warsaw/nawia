@@ -1,16 +1,13 @@
 [project]
-name = "kampos"
-version = "0.1.0"
+name = "nawia"
+version = "0.1.1"
 dependencies = [
     "pandas>=2.2.0",
     "streamlit>=1.35.0",
     "sqlalchemy>=2.0.0",
     "psycopg2-binary",
-    "plotly",
-    "sqlite3",
-    "subprocess",
-    "contextlib"
+    "plotly"
 ]
 
 [project.scripts]
-kampos = "kampos.cli:main”
+nawia = "nawia.cli:main"
