@@ -1,6 +1,6 @@
 import os
 import pandas as pd
-from sqlalchemy import create_engine, event, inspect, text
+from sqlalchemy import URL, create_engine, event, inspect, text
 import sqlalchemy
 import sqlite3
 from collections import deque
@@ -46,6 +46,7 @@ class LabDatabase:
             - run_backup(schema = None, project = None).
 
         Hidden:
+            - _get_project_config(schema=None, project=None).
             - _build_join_graph(project = None, schema = None).
             - _find_join_path(graph, start, target).
             - _build_sample_details_query(project = None, schema = None).
@@ -72,8 +73,42 @@ class LabDatabase:
 
         # Create the engine to establish a connection to the database
         if user and password:
-            self.url = f"postgresql://{user}:{password}@{self.host}:{self.port}/{self.db_name}"
+            self.url = URL.create(
+                "postgresql+psycopg2",
+                username=user,
+                password=password,
+                host=self.host,
+                port=int(self.port),
+                database=self.db_name,
+            )
             self.engine = create_engine(self.url)
+
+    def _get_project_config(self, schema=None, project=None):
+        """
+        Find the configuration entry for the selected project or database schema.
+
+        Input:
+        - project: macroproject name. Optional.
+        - schema: schema name. Optional.
+
+        Output:
+        - A dictionary with the project or database schema configuration.
+        """
+        projects = self.config.get("database", {}).get("projects", [])
+        if project is not None:
+            match = next((entry for entry in projects if entry.get("name") == project), None)
+            if match is not None:
+                return match
+        if schema is not None:
+            match = next(
+                (entry for entry in projects if entry.get("schema_name") == schema),
+                None,
+            )
+            if match is not None:
+                return match
+        if project is None and schema is None and projects:
+            return projects[0]
+        return None
 
     def get_column_values(self, table, project = None, schema = None, columns='all'):
         """
@@ -871,17 +906,26 @@ class LabDatabase:
             print(f"Database Error: {e}")
             return False
 
-    def _get_parent_for_sheet(self, sheet_name):
+    def _get_parent_for_sheet(self, sheet_name, schema=None, project=None):
         """
-        Return the parent table for a sheet if a hierarchy entry exists in the config.json file.
+        Return the configured parent table for this project's upload sheet.
         
         Inputs:
         - sheet_name: the target sheet/table.
+        - schema: database schema being uploaded to.
+        - project: project name being uploaded to.
         
         Output: 
-        - the name of the parent table.
+        - the name of the parent table, or None when no relationship is configured.
         """
-        table_hierarchies = self.config.get("database", {}).get("table_hierarchies", {})
+        project_config = self._get_project_config(schema=schema, project=project)
+        table_hierarchies = (
+            project_config.get("table_hierarchies")
+            if project_config
+            else None
+        )
+        if table_hierarchies is None:
+            table_hierarchies = self.config.get("database", {}).get("table_hierarchies", {})
         sheet_config = table_hierarchies.get(sheet_name, {})
         return sheet_config.get("parent")
 
@@ -940,8 +984,16 @@ class LabDatabase:
 
         failed_sheets = []
 
-        # Default Values
-        default_values = self.config["database"]["default_values"]
+        # Le impostazioni di upload appartengono al progetto selezionato. Il fallback
+        # globale mantiene compatibilita' con i vecchi file di configurazione.
+        project_config = self._get_project_config(schema=schema, project=project)
+        default_values = (
+            project_config.get("default_values")
+            if project_config
+            else None
+        )
+        if default_values is None:
+            default_values = self.config["database"].get("default_values", {})
 
         # Opens connection to the database
         with self.engine.connect() as conn:
@@ -969,7 +1021,11 @@ class LabDatabase:
                     if self.engine.dialect.has_table(conn, sheet, schema = schema):
                         # If yes, tries to append the new data
                         try:
-                            parent_name = self._get_parent_for_sheet(sheet)
+                            parent_name = self._get_parent_for_sheet(
+                                sheet,
+                                schema=schema,
+                                project=project,
+                            )
                             
                             if parent_name:
                                 self.check_parent_from_child(parent_name=parent_name, child_dataframe=data, conn=conn, schema=schema, project=project)

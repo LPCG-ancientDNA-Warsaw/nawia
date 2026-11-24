@@ -1,5 +1,6 @@
 import argparse
 import sys
+from nawia.commands import config as config_command
 from nawia.commands import web_interface, parse_folder, eager_helper
 
 def main():
@@ -20,6 +21,9 @@ def main():
 
     # Command for eager
     eager_helper.add_parser(subparsers)
+
+    # Commands for creating and checking database configuration
+    config_command.add_parser(subparsers)
 
     args = parser.parse_args()
 

@@ -11,3 +11,6 @@ dependencies = [
 
 [project.scripts]
 nawia = "nawia.cli:main"
+
+[tool.setuptools]
+packages = ["nawia", "nawia.commands"]

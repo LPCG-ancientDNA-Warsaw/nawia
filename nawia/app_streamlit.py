@@ -1,14 +1,46 @@
 from psycopg2 import OperationalError
 import streamlit as st
+import sys
+from pathlib import Path
+
+# When Streamlit is started directly with `streamlit run nawia/app_streamlit.py`,
+# Streamlit may put only this package directory on sys.path. Add the repository
+# root so package imports such as `nawia.db_manager` work in that mode too.
+_repository_root = Path(__file__).resolve().parent.parent
+if str(_repository_root) not in sys.path:
+    sys.path.insert(0, str(_repository_root))
+
 from nawia.db_manager import LabDatabase
 import pandas as pd
 import glob
 import os
 from datetime import datetime
 import plotly.express as px
-from sqlalchemy import text
+from sqlalchemy import MetaData, Table, inspect as sqlalchemy_inspect, select, text
+from sqlalchemy.sql.sqltypes import (
+    Date,
+    DateTime,
+    Float,
+    Integer,
+    Numeric,
+)
 from pathlib import Path
 import io
+import json
+import copy
+import math
+import plotly.graph_objects as go
+import importlib.util
+
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import OperationalError as SQLAlchemyOperationalError
+
+from nawia.configuration import (
+    ConfigurationError,
+    save_configuration,
+    validate_configuration,
+    validate_project_schema,
+)
 
 @st.cache_resource(show_spinner="Connecting to the database...")
 def init_db(user, password):
@@ -44,17 +76,41 @@ def get_database_connection():
     db_password = st.sidebar.text_input("Password Database", type="password")
 
     if db_user and db_password:
+        missing_dependencies = []
+        for module_name in ("sqlalchemy", "psycopg2", "pandas", "plotly"):
+            if importlib.util.find_spec(module_name) is None:
+                missing_dependencies.append(module_name)
+
+        if missing_dependencies:
+            st.sidebar.error(
+                "Dependency missing: "
+                + ", ".join(missing_dependencies)
+                + ". Install with `python -m pip install -e .` "
+                "using the same Python environment that launched Streamlit."
+            )
+            return None
+
         try:
             db = init_db(db_user, db_password)
             st.sidebar.success("Connection established!")
             return db
 
         # Missing dependencies
-        except (ModuleNotFoundError, ImportError):
-            st.sidebar.error("Dependency missing! Did you install the required packages from `pyproject.toml`?")
+        except (ModuleNotFoundError, ImportError) as error:
+            missing_module = getattr(error, "name", None) or str(error)
+            st.sidebar.error(
+                f"Python could not load a dependency ({missing_module}). "
+                "Run `python -m pip install -e .` with the same Python "
+                "interpreter used by Streamlit."
+            )
             return None
 
         # Credentials or Database status problems
+        except SQLAlchemyOperationalError as error:
+            original_error = getattr(error, "orig", error)
+            st.sidebar.error(f"Database connection failed: {original_error}")
+            return None
+
         except OperationalError as e:
             error_msg = str(e).lower()
 
@@ -871,7 +927,7 @@ def project_view():
         """)
 
         mat_query = text(f"""
-            SELECT ps.{material_info["column_table"]}
+            SELECT ps.{material_info["column_name"]}
             FROM {selected_schema}.{material_info["base_table"]} ps
             JOIN {selected_schema}.{individual_table} i
             ON ps.{individual_key_col} = i.{individual_key_col}
@@ -929,6 +985,463 @@ def project_view():
                 file_name=f"{selected_project_ID.replace(' ', '_')}_data.csv",
                 mime="text/csv",)
 
+def configuration_view():
+    """
+    Interactive configuration editor for mappings and table hierarchies.
+
+    The page reads PostgreSQL metadata through SQLAlchemy, so it can offer only
+    tables and foreign-key relationships that actually exist. It never creates
+    or alters database objects.
+    """
+    st.title("⚙️ Configuration")
+
+    config_path = Path(__file__).resolve().parent.parent / "config.json"
+    try:
+        with config_path.open("r", encoding="utf-8-sig") as config_file:
+            config = json.load(config_file)
+    except (OSError, json.JSONDecodeError) as error:
+        st.error(f"Could not read {config_path.name}: {error}")
+        return
+
+    projects = config.get("database", {}).get("projects", [])
+    if not projects:
+        st.error("No projects are configured.")
+        return
+
+    project_labels = [
+        project.get("name") or project.get("schema_name") or f"Project {index + 1}"
+        for index, project in enumerate(projects)
+    ]
+    selected_label = st.selectbox("Project", project_labels)
+    project_index = project_labels.index(selected_label)
+    project = copy.deepcopy(projects[project_index])
+    schema = str(project.get("schema_name", "")).strip()
+
+    with st.expander("Project settings", expanded=True):
+        project_name = st.text_input("Project name", value=project.get("name", ""))
+        schema_name = st.text_input("Schema name", value=schema)
+        backups_path = st.text_input(
+            "Backups directory",
+            value=project.get("backups_path", ""),
+            help="Optional. Relative paths are resolved from the configuration directory.",
+        )
+        project["name"] = project_name.strip()
+        project["schema_name"] = schema_name.strip()
+        project["backups_path"] = backups_path.strip()
+
+    st.divider()
+    st.subheader("Foreign-key graph")
+    st.caption(
+        "This graph is read-only. It shows relationships discovered from PostgreSQL "
+        "and is not SQL that Nawia will execute."
+    )
+
+    inspector = sqlalchemy_inspect(db.engine)
+    tables = sorted(inspector.get_table_names(schema=schema))
+    graph_edges = []
+    for child in tables:
+        for foreign_key in inspector.get_foreign_keys(child, schema=schema):
+            parent = foreign_key.get("referred_table")
+            if parent not in tables:
+                continue
+            child_columns = foreign_key.get("constrained_columns") or []
+            parent_columns = foreign_key.get("referred_columns") or []
+            if child_columns and parent_columns:
+                graph_edges.append(
+                    {
+                        "child": child,
+                        "parent": parent,
+                        "join": ", ".join(
+                            f"{child_column} -> {parent_column}"
+                            for child_column, parent_column in zip(
+                                child_columns, parent_columns
+                            )
+                        ),
+                    }
+                )
+
+    if not graph_edges:
+        st.info("No foreign keys were discovered in this schema.")
+    else:
+        st.dataframe(
+            pd.DataFrame(graph_edges),
+            width="stretch",
+            hide_index=True,
+        )
+
+        node_names = list(dict.fromkeys(
+            [edge["parent"] for edge in graph_edges]
+            + [edge["child"] for edge in graph_edges]
+        ))
+        node_positions = {
+            name: (
+                0.5 + 0.42 * math.cos(2 * math.pi * index / len(node_names)),
+                0.5 + 0.42 * math.sin(2 * math.pi * index / len(node_names)),
+            )
+            for index, name in enumerate(node_names)
+        }
+
+        edge_x = []
+        edge_y = []
+        for edge in graph_edges:
+            x0, y0 = node_positions[edge["parent"]]
+            x1, y1 = node_positions[edge["child"]]
+            edge_x.extend([x0, x1, None])
+            edge_y.extend([y0, y1, None])
+
+        figure = go.Figure()
+        figure.update_layout(annotations=[
+            {
+                "x": node_positions[edge["child"]][0] - (
+                    node_positions[edge["child"]][0]
+                    - node_positions[edge["parent"]][0]
+                ) * 0.12,
+                "y": node_positions[edge["child"]][1] - (
+                    node_positions[edge["child"]][1]
+                    - node_positions[edge["parent"]][1]
+                ) * 0.12,
+                "ax": node_positions[edge["parent"]][0] + (
+                    node_positions[edge["child"]][0]
+                    - node_positions[edge["parent"]][0]
+                ) * 0.12,
+                "ay": node_positions[edge["parent"]][1] + (
+                    node_positions[edge["child"]][1]
+                    - node_positions[edge["parent"]][1]
+                ) * 0.12,
+                "xref": "x",
+                "yref": "y",
+                "axref": "x",
+                "ayref": "y",
+                "text": "",
+                "showarrow": True,
+                "arrowhead": 3,
+                "arrowsize": 1.2,
+                "arrowwidth": 1.5,
+                "arrowcolor": "#566573",
+            }
+            for edge in graph_edges
+        ])
+        figure.add_trace(go.Scatter(
+            x=edge_x,
+            y=edge_y,
+            mode="lines",
+            line=dict(width=1, color="#8b96a3"),
+            hoverinfo="none",
+        ))
+        figure.add_trace(go.Scatter(
+            x=[node_positions[name][0] for name in node_names],
+            y=[node_positions[name][1] for name in node_names],
+            mode="markers+text",
+            text=node_names,
+            textposition="top center",
+            marker=dict(size=18, color="#2f81f7"),
+            hovertext=[
+                f"{name}<br>{len([edge for edge in graph_edges if edge['child'] == name or edge['parent'] == name])} relationship(s)"
+                for name in node_names
+            ],
+            hoverinfo="text",
+        ))
+        figure.update_layout(
+            height=420,
+            margin=dict(l=20, r=20, t=20, b=20),
+            xaxis=dict(visible=False),
+            yaxis=dict(visible=False),
+            showlegend=False,
+        )
+        st.plotly_chart(figure, width="stretch")
+
+    st.divider()
+    st.subheader("Hierarchy editor")
+    st.caption(
+        "Add one row per child table. Nawia will save only relationships backed by "
+        "a real foreign key."
+    )
+
+    relationship_options = [
+        f"{edge['child']} -> {edge['parent']} ({edge['join']})"
+        for edge in graph_edges
+    ]
+    existing_hierarchies = project.get("table_hierarchies", {})
+    existing_rows = []
+    for child, relationship in existing_hierarchies.items():
+        if not isinstance(relationship, dict):
+            continue
+        parent = relationship.get("parent")
+        join_on = relationship.get("join_on")
+        matching_join = next(
+            (
+                edge["join"]
+                for edge in graph_edges
+                if edge["child"] == child
+                and edge["parent"] == parent
+                and join_on in edge["join"]
+            ),
+            None,
+        )
+        option = next(
+            (
+                option
+                for option in relationship_options
+                if option.startswith(f"{child} -> {parent} ")
+            ),
+            relationship_options[0] if relationship_options else None,
+        )
+        if option:
+            existing_rows.append({"relationship": option, "enabled": True})
+
+    if not relationship_options:
+        st.warning("Cannot add a hierarchy because no foreign keys are available.")
+        selected_rows = []
+    else:
+        selected_rows = st.data_editor(
+            pd.DataFrame(existing_rows, columns=["relationship", "enabled"]),
+            column_config={
+                "relationship": st.column_config.SelectboxColumn(
+                    "Foreign key",
+                    options=relationship_options,
+                    required=True,
+                ),
+                "enabled": st.column_config.CheckboxColumn("Enabled", default=True),
+            },
+            num_rows="dynamic",
+            width="stretch",
+            hide_index=True,
+            key="hierarchy_editor",
+        ).to_dict("records")
+
+    hierarchies = {}
+    for row in selected_rows:
+        if not row.get("enabled"):
+            continue
+        selected_option = row.get("relationship")
+        edge = next(
+            (
+                edge
+                for edge in graph_edges
+                if f"{edge['child']} -> {edge['parent']} ({edge['join']})"
+                == selected_option
+            ),
+            None,
+        )
+        if edge is None:
+            continue
+        child_columns = [
+            foreign_key.get("constrained_columns") or []
+            for foreign_key in inspector.get_foreign_keys(edge["child"], schema=schema)
+            if foreign_key.get("referred_table") == edge["parent"]
+        ]
+        if child_columns:
+            hierarchies[edge["child"]] = {
+                "parent": edge["parent"],
+                "join_on": child_columns[0][0],
+            }
+    project["table_hierarchies"] = hierarchies
+
+    st.divider()
+    st.subheader("Validation")
+    draft_config = copy.deepcopy(config)
+    draft_config["database"]["projects"][project_index] = project
+
+    local_errors = validate_configuration(draft_config)
+    if local_errors:
+        st.error("Local configuration errors:")
+        for error in local_errors:
+            st.caption(f"- {error}")
+    else:
+        st.success("The local configuration is structurally valid.")
+
+    if st.button("Test against PostgreSQL", type="secondary"):
+        schema_errors, warnings = validate_project_schema(project, inspector)
+        if schema_errors:
+            st.error("Database validation errors:")
+            for error in schema_errors:
+                st.caption(f"- {error}")
+        else:
+            st.success("The configuration matches the selected PostgreSQL schema.")
+        for warning in warnings:
+            st.warning(warning)
+
+    st.divider()
+    with st.expander("JSON preview"):
+        st.code(json.dumps(draft_config, indent=2, ensure_ascii=False), language="json")
+
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("Save configuration", type="primary", disabled=bool(local_errors)):
+            try:
+                backup_path = save_configuration(
+                    draft_config,
+                    config_path,
+                    overwrite=True,
+                )
+                st.cache_resource.clear()
+                st.success(
+                    f"Configuration saved.{' Backup: ' + str(backup_path) if backup_path else ''}"
+                )
+            except ConfigurationError as error:
+                st.error(str(error))
+    with col2:
+        st.caption("Saving does not create or alter PostgreSQL tables.")
+
+def exploratory_charts():
+    """Build read-only exploratory charts from columns in the active schema."""
+    st.title("📈 Explore Data")
+    st.write(
+        "Choose a table and fields to create an exploratory chart. "
+        "This page does not require Nawia field mappings."
+    )
+
+    _, schema = get_active_project_context()
+    inspector = sqlalchemy_inspect(db.engine)
+    tables = sorted(inspector.get_table_names(schema=schema))
+    if not tables:
+        st.info(f"No tables were found in schema '{schema}'.")
+        return
+
+    table_name = st.selectbox("Table", tables)
+    column_details = inspector.get_columns(table_name, schema=schema)
+    column_names = [column["name"] for column in column_details]
+
+    numeric_columns = []
+    date_columns = []
+    categorical_columns = []
+    for column in column_details:
+        column_name = column["name"]
+        column_type = column["type"]
+        if isinstance(column_type, (DateTime, Date)):
+            date_columns.append(column_name)
+        elif isinstance(column_type, (Integer, Float, Numeric)):
+            numeric_columns.append(column_name)
+        else:
+            categorical_columns.append(column_name)
+
+    chart_types = []
+    if numeric_columns:
+        chart_types.extend(["Histogram", "Box plot"])
+    if categorical_columns:
+        chart_types.append("Bar chart")
+    if len(numeric_columns) >= 2:
+        chart_types.append("Scatter plot")
+    if date_columns and numeric_columns:
+        chart_types.append("Line chart")
+
+    if not chart_types:
+        st.info("This table has no supported columns for the available chart types.")
+        return
+
+    chart_type = st.selectbox("Chart type", chart_types)
+    selected_columns = []
+
+    if chart_type == "Histogram":
+        value_column = st.selectbox("Numeric field", numeric_columns)
+        selected_columns = [value_column]
+    elif chart_type == "Box plot":
+        value_column = st.selectbox("Numeric field", numeric_columns)
+        group_column = st.selectbox(
+            "Group by (optional)",
+            ["(no grouping)"] + categorical_columns,
+        )
+        selected_columns = [value_column]
+        if group_column != "(no grouping)":
+            selected_columns.append(group_column)
+    elif chart_type == "Bar chart":
+        category_column = st.selectbox("Category field", categorical_columns)
+        numeric_value = st.selectbox(
+            "Numeric field (optional)",
+            ["(count records)"] + numeric_columns,
+        )
+        aggregation = "count"
+        if numeric_value != "(count records)":
+            aggregation = st.selectbox(
+                "Summarize numeric values by",
+                ["mean", "median", "sum"],
+            )
+            selected_columns = [category_column, numeric_value]
+        else:
+            selected_columns = [category_column]
+    elif chart_type == "Scatter plot":
+        x_column = st.selectbox("X-axis", numeric_columns, key="explore_scatter_x")
+        y_options = [column for column in numeric_columns if column != x_column]
+        y_column = st.selectbox("Y-axis", y_options, key="explore_scatter_y")
+        selected_columns = [x_column, y_column]
+    else:
+        x_column = st.selectbox("Date/time field", date_columns)
+        y_column = st.selectbox("Numeric field", numeric_columns)
+        selected_columns = [x_column, y_column]
+
+    st.caption(
+        "Charts use at most 10,000 rows returned by the database for responsiveness. "
+        "Treat them as exploratory, not as a statistically representative sample."
+    )
+    if not st.button("Build chart", type="primary"):
+        return
+
+    reflected_table = Table(
+        table_name,
+        MetaData(),
+        schema=schema,
+        autoload_with=db.engine,
+    )
+    statement = select(
+        *(reflected_table.c[column] for column in selected_columns)
+    ).limit(10000)
+    try:
+        with db.engine.connect() as connection:
+            chart_data = pd.read_sql(statement, connection)
+    except SQLAlchemyError as error:
+        st.error(f"Could not read chart data from '{table_name}': {error}")
+        return
+
+    if chart_data.empty:
+        st.info("The selected table has no rows to chart.")
+        return
+
+    if chart_type == "Histogram":
+        figure = px.histogram(chart_data, x=value_column)
+    elif chart_type == "Box plot":
+        figure = px.box(
+            chart_data,
+            x=None if group_column == "(no grouping)" else group_column,
+            y=value_column,
+        )
+    elif chart_type == "Bar chart":
+        if numeric_value == "(count records)":
+            counts = (
+                chart_data[category_column]
+                .fillna("(missing)")
+                .astype(str)
+                .value_counts()
+                .head(30)
+                .rename_axis(category_column)
+                .reset_index(name="records")
+            )
+            figure = px.bar(counts, x=category_column, y="records")
+        else:
+            chart_data[category_column] = (
+                chart_data[category_column].fillna("(missing)").astype(str)
+            )
+            grouped = (
+                chart_data.groupby(category_column, dropna=False)[numeric_value]
+                .agg(aggregation)
+                .reset_index()
+                .sort_values(numeric_value, ascending=False)
+                .head(30)
+            )
+            figure = px.bar(grouped, x=category_column, y=numeric_value)
+    elif chart_type == "Scatter plot":
+        figure = px.scatter(chart_data, x=x_column, y=y_column)
+    else:
+        grouped = (
+            chart_data.groupby(x_column, dropna=True)[y_column]
+            .mean()
+            .reset_index()
+            .sort_values(x_column)
+        )
+        figure = px.line(grouped, x=x_column, y=y_column, markers=True)
+
+    st.plotly_chart(figure, width="stretch")
+    st.dataframe(chart_data, width="stretch", hide_index=True)
+
 # Navigation bar
 pg = st.navigation({
     "Management": [
@@ -942,9 +1455,11 @@ pg = st.navigation({
     "Deep Dive": [
         st.Page(sample_view, title="Sample View", icon="🧬"),
         st.Page(project_view, title="Project View", icon="📁"),
+        st.Page(exploratory_charts, title="Explore Data", icon="📈"),
     ],
     "System": [
         st.Page(backup, title="Backup", icon="💾"),
+        st.Page(configuration_view, title="Configuration", icon="⚙️"),
     ]
 })
 

@@ -1,0 +1,2 @@
+[console_scripts]
+nawia = nawia.cli:main

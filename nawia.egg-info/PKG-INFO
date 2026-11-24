@@ -1,0 +1,8 @@
+Metadata-Version: 2.4
+Name: nawia
+Version: 0.1.1
+Requires-Dist: pandas>=2.2.0
+Requires-Dist: streamlit>=1.35.0
+Requires-Dist: sqlalchemy>=2.0.0
+Requires-Dist: psycopg2-binary
+Requires-Dist: plotly
