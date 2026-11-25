@@ -220,6 +220,68 @@ class ConfigurationTests(unittest.TestCase):
             self.assertEqual(backup.read_text(encoding="utf-8"), "original")
             self.assertEqual(json.loads(path.read_text(encoding="utf-8"))["database"]["db_name"], "lab")
 
+    def test_overwrite_rotates_existing_backup_to_numbered_name(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "config.json"
+            original_config = make_configuration()
+            path.write_text("original", encoding="utf-8")
+            first_backup = save_configuration(original_config, path, overwrite=True)
+            updated_config = make_configuration()
+            updated_config["database"]["db_name"] = "next_lab"
+
+            second_backup = save_configuration(updated_config, path, overwrite=True)
+
+            self.assertEqual(first_backup.name, "config.json.bak")
+            self.assertEqual(second_backup.name, "config.json.bak")
+            self.assertEqual(
+                json.loads(second_backup.read_text(encoding="utf-8")),
+                original_config,
+            )
+            self.assertEqual(
+                first_backup.with_name("config.json.bak.1").read_text(
+                    encoding="utf-8"
+                ),
+                "original",
+            )
+            self.assertEqual(
+                json.loads(path.read_text(encoding="utf-8"))["database"]["db_name"],
+                "next_lab",
+            )
+
+    def test_backup_rotation_keeps_only_configured_limit(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "config.json"
+            path.write_text("initial", encoding="utf-8")
+
+            for index in range(1, 6):
+                config = make_configuration()
+                config["database"]["db_name"] = f"lab_{index}"
+                save_configuration(config, path, overwrite=True)
+
+            backups = [
+                path.with_suffix(path.suffix + ".bak"),
+                path.with_suffix(path.suffix + ".bak.1"),
+                path.with_suffix(path.suffix + ".bak.2"),
+            ]
+            backup_names = {
+                candidate.name
+                for candidate in path.parent.iterdir()
+                if candidate.name.startswith(f"{path.name}.bak")
+            }
+
+            self.assertTrue(all(backup.exists() for backup in backups))
+            self.assertEqual(
+                backup_names,
+                {"config.json.bak", "config.json.bak.1", "config.json.bak.2"},
+            )
+            self.assertEqual(
+                [
+                    json.loads(backup.read_text(encoding="utf-8"))["database"]["db_name"]
+                    for backup in backups
+                ],
+                ["lab_4", "lab_3", "lab_2"],
+            )
+
     def test_overwrite_requires_explicit_confirmation(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "config.json"

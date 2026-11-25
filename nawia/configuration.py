@@ -576,6 +576,75 @@ def _shortest_path_count(graph, start, target):
     return path_counts.get(target, 0)
 
 
+CONFIGURATION_BACKUP_LIMIT = 3
+
+
+def _create_configuration_backup(path: Path) -> Path:
+    backup_prefix = f"{path.name}.bak"
+    backups: list[tuple[int, Path]] = []
+    try:
+        for candidate in path.parent.iterdir():
+            if not candidate.is_file() or not candidate.name.startswith(backup_prefix):
+                continue
+            suffix = candidate.name[len(backup_prefix):]
+            if not suffix:
+                index = 0
+            elif suffix.startswith(".") and suffix[1:].isdigit():
+                index = int(suffix[1:])
+            else:
+                continue
+            backups.append((index, candidate))
+    except OSError as error:
+        raise ConfigurationError(
+            f"Could not inspect existing configuration backups: {error}"
+        ) from error
+    backups.sort(key=lambda item: item[0])
+
+    staged_backup = None
+    rotation_started = False
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="wb",
+            dir=path.parent,
+            prefix=f".{path.name}.",
+            suffix=".bak.tmp",
+            delete=False,
+        ) as temporary_file:
+            staged_backup = Path(temporary_file.name)
+        shutil.copy2(path, staged_backup)
+
+        retained_backups = backups[: CONFIGURATION_BACKUP_LIMIT - 1]
+        stale_backups = backups[CONFIGURATION_BACKUP_LIMIT - 1 :]
+        rotation_started = True
+        for _, stale_backup in stale_backups:
+            stale_backup.unlink()
+        for index in range(len(retained_backups) - 1, -1, -1):
+            source = retained_backups[index][1]
+            destination = path.with_suffix(path.suffix + f".bak.{index + 1}")
+            if source != destination:
+                os.replace(source, destination)
+
+        backup_path = path.with_suffix(path.suffix + ".bak")
+        os.replace(staged_backup, backup_path)
+        return backup_path
+    except OSError as error:
+        if staged_backup is not None and staged_backup.exists():
+            if rotation_started:
+                raise ConfigurationError(
+                    f"Could not rotate configuration backups ({error}). "
+                    f"The new backup is preserved at {staged_backup}."
+                ) from error
+            try:
+                staged_backup.unlink()
+            except OSError as cleanup_error:
+                raise ConfigurationError(
+                    f"Could not create a configuration backup ({error}); "
+                    f"the temporary backup remains at {staged_backup} "
+                    f"({cleanup_error})."
+                ) from error
+        raise ConfigurationError(f"Could not create a configuration backup: {error}") from error
+
+
 def save_configuration(config, path, overwrite = False):
     """
     Writes a Json configuration file. Saves the current one as a backup.
@@ -598,13 +667,8 @@ def save_configuration(config, path, overwrite = False):
         if not overwrite:
             raise ConfigurationError(
                 f"The file {path} already exists. Use --force to overwrite it.")
-        backup_path = path.with_suffix(path.suffix + ".bak")
-        if backup_path.exists():
-            raise ConfigurationError(f"The backup {backup_path} already exists; rename it before overwriting.")
         try:
-            shutil.copy2(path, backup_path)
-        except OSError as error:
-            raise ConfigurationError(f"Impossible to create the backup file {backup_path}: {error}") from error
+            backup_path = _create_configuration_backup(path)
 
     temporary_path = None
     try:
