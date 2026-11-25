@@ -65,7 +65,7 @@ nawia config validate
 nawia config test
 ```
 
-`config init` reads database metadata but does not create, alter, or delete database tables. It will not overwrite an existing configuration unless `--force` is provided; in that case, it first saves a `.bak` copy. The configuration web page is still planned.
+`config init` prompts for the PostgreSQL host, port, database name, and credentials before loading available schemas and configuring mappings. Credentials are used only to establish the connection and are not saved. Use the database server's hostname and port; `localhost` refers to the machine running Nawia (or to an SSH tunnel running on that same machine). The command reads database metadata but does not create, alter, or delete database tables. It will not overwrite an existing configuration unless `--force` is provided; in that case, it first saves a `.bak` copy. The configuration web page is still planned.
 
 ### Configuration concepts
 

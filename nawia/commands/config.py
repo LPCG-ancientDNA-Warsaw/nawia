@@ -1,4 +1,4 @@
-"""Comandi interattivi per inizializzare e verificare la configurazione."""
+"""Interactive commands for creating and checking the database configuration."""
 
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ PRESET_DIRECTORY = ROOT / "templates" / "config_presets"
 
 
 def add_parser(subparsers: Any) -> None:
-    """Registra i comandi `config init`, `config validate` e `config test`."""
+    """Registers commands `config init`, `config validate` and `config test`."""
     config_parser = subparsers.add_parser(
         "config",
         help="Create, validate, or test the database configuration",
@@ -91,7 +91,7 @@ def add_parser(subparsers: Any) -> None:
 
 
 def run_validate(args: Any) -> None:
-    """Esegue i controlli locali: non apre connessioni e non modifica file."""
+    """Run local checks without connecting to the database or modifying files."""
     try:
         config = load_configuration(args.config)
     except ConfigurationError as error:
@@ -99,17 +99,17 @@ def run_validate(args: Any) -> None:
 
     errors = validate_configuration(config)
     if errors:
-        print("Configurazione non valida:")
+        print("Invalid configuration:")
         for error in errors:
             print(f"- {error}")
         raise SystemExit(1)
 
-    print(f"Configurazione valida: {args.config}")
-    print("Questo controllo non verifica l'esistenza reale delle tabelle nel database.")
+    print(f"Configuration is valid: {args.config}")
+    print("This check does not verify that the tables exist in the database.")
 
 
 def run_test(args: Any) -> None:
-    """Prova la connessione e verifica mapping e gerarchie contro lo schema reale."""
+    """Test the database connection and verify mappings and relationships."""
     try:
         config = load_configuration(args.config)
     except ConfigurationError as error:
@@ -117,7 +117,7 @@ def run_test(args: Any) -> None:
 
     errors = validate_configuration(config)
     if errors:
-        print("Correggi prima la configurazione:")
+        print("Fix the configuration errors first:")
         for error in errors:
             print(f"- {error}")
         raise SystemExit(1)
@@ -129,7 +129,7 @@ def run_test(args: Any) -> None:
 
     username = args.username or input("Database username: ").strip()
     if not username:
-        _fail("Il nome utente del database non puo' essere vuoto.")
+        _fail("The database username cannot be empty.")
     password = getpass.getpass("Database password (not saved): ")
 
     try:
@@ -143,36 +143,36 @@ def run_test(args: Any) -> None:
         errors, warnings = validate_project_schema(project, inspector)
     except SQLAlchemyError as error:
         _fail(
-            "Connessione riuscita, ma non e' stato possibile leggere lo schema "
-            f"({type(error).__name__}). Verifica i permessi dell'utente."
+            "Connected successfully, but could not read the schema "
+            f"({type(error).__name__}). Check the user's permissions."
         )
     finally:
         engine.dispose()
 
     if errors:
-        print(f"Connessione riuscita, ma lo schema '{project['schema_name']}' non e' valido per Nawia:")
+        print(f"Connected successfully, but schema '{project['schema_name']}' is not valid for Nawia:")
         for error in errors:
             print(f"- {error}")
         for warning in warnings:
-            print(f"Attenzione: {warning}")
+            print(f"Warning: {warning}")
         raise SystemExit(1)
 
-    print(f"Connessione riuscita. Mapping e relazioni di '{project['name']}' verificati.")
+    print(f"Connected successfully. Mappings and relationships for '{project['name']}' are valid.")
     for warning in warnings:
-        print(f"Attenzione: {warning}")
+        print(f"Warning: {warning}")
 
 
 def run_init(args: Any) -> None:
-    """Guida l'utente nel creare una configurazione per uno schema gia' esistente.
+    """Guide the user through configuring Nawia for an existing database schema.
 
-    Il comando legge il catalogo del database, ma non crea o modifica tabelle.
-    Le credenziali sono usate solo per la connessione corrente e non sono salvate.
+    This command reads database metadata but does not create or modify tables.
+    Credentials are only used for the current connection and are not saved.
     """
     output_path = args.output.expanduser()
     if output_path.exists() and not args.force:
         _fail(
-            f"Il file {output_path} esiste gia'. Per proteggerlo, init non lo "
-            "sovrascrive: scegli --output oppure usa --force per conservarne un backup."
+            f"The file {output_path} already exists. To protect it, init will not "
+            "overwrite it: choose --output or use --force to keep a backup."
         )
 
     try:
@@ -182,17 +182,22 @@ def run_init(args: Any) -> None:
 
     database_value = template.get("database")
     if not isinstance(database_value, dict):
-        _fail("Il template selezionato non contiene una sezione 'database' valida.")
+        _fail("The selected template does not contain a valid 'database' section.")
     database_template = cast(dict[str, Any], database_value)
+    print("Database connection settings")
+    print(
+        "Enter the database server's host and port. Use localhost only when the "
+        "database or an SSH tunnel is running on the same machine as Nawia."
+    )
     host = _prompt_text("Database host", database_template.get("host"))
     port = _prompt_text("Database port", str(database_template.get("port") or "5432"))
     database_name = _prompt_text("Database name", database_template.get("db_name"))
     if not port.isdigit() or not 1 <= int(port) <= 65535:
-        _fail("La porta deve essere un numero tra 1 e 65535.")
+        _fail("The port must be a number between 1 and 65535.")
     username = _prompt_text("Database username")
     password = getpass.getpass("Database password (not saved): ")
     if not password:
-        _fail("La password non puo' essere vuota.")
+        _fail("The password cannot be empty.")
 
     try:
         engine, inspector = _connect_and_inspect(
@@ -226,7 +231,7 @@ def run_init(args: Any) -> None:
         )
         project_template["mapping"] = mappings
 
-        # I sommari possono contenere solo concetti che l'utente ha effettivamente mappato.
+        # Summaries can only contain concepts that the user has mapped.
         summaries_value = project_template.get("summaries_fields")
         summaries = cast(
             dict[str, Any],
@@ -255,7 +260,7 @@ def run_init(args: Any) -> None:
         config = copy.deepcopy(template)
         database_config_value = config.get("database")
         if not isinstance(database_config_value, dict):
-            raise ConfigurationError("Il template selezionato non contiene una sezione database valida.")
+            raise ConfigurationError("The selected template does not contain a valid database section.")
         database_config = cast(dict[str, Any], database_config_value)
         database_config.update(
             {
@@ -270,14 +275,14 @@ def run_init(args: Any) -> None:
         local_errors = validate_configuration(config)
         if local_errors:
             raise ConfigurationError(
-                "La configurazione generata non supera i controlli locali:\n- "
+                "The generated configuration failed local validation:\n- "
                 + "\n- ".join(local_errors)
             )
 
         schema_errors, warnings = validate_project_schema(project_template, inspector)
         if schema_errors:
             raise ConfigurationError(
-                "La configurazione generata non corrisponde allo schema selezionato:\n- "
+                "The generated configuration does not match the selected schema:\n- "
                 + "\n- ".join(schema_errors)
             )
 
@@ -286,22 +291,22 @@ def run_init(args: Any) -> None:
         _fail(str(error))
     except SQLAlchemyError as error:
         _fail(
-            "Connessione riuscita, ma non e' stato possibile leggere lo schema "
-            f"({type(error).__name__}). Verifica i permessi dell'utente."
+            "Connected successfully, but could not read the schema "
+            f"({type(error).__name__}). Check the user's permissions."
         )
     finally:
         engine.dispose()
 
-    print(f"Configurazione salvata in: {output_path.resolve()}")
+    print(f"Configuration saved to: {output_path.resolve()}")
     if backup_path:
-        print(f"Configurazione precedente conservata in: {backup_path}")
-    print("Le credenziali non sono state salvate.")
+        print(f"Previous configuration backed up to: {backup_path}")
+    print("Credentials were not saved.")
     for warning in warnings:
-        print(f"Attenzione: {warning}")
+        print(f"Warning: {warning}")
 
 
 def _choose_template(template_path: Path | None) -> dict[str, Any]:
-    """Carica un template indicato oppure mostra i preset disponibili."""
+    """Load a specified template or show the available presets."""
     if template_path:
         template = load_configuration(template_path.expanduser())
         _validate_template_shape(template)
@@ -314,11 +319,11 @@ def _choose_template(template_path: Path | None) -> dict[str, Any]:
             for path in sorted(PRESET_DIRECTORY.glob("*.json"))
         )
 
-    print("Da quale configurazione vuoi partire?")
+    print("Choose a configuration preset:")
     for index, (label, _) in enumerate(presets, start=1):
         print(f"  {index}. {label}")
-    print(f"  {len(presets) + 1}. Custom (solo i mapping richiesti dall'interfaccia attuale)")
-    choice = _prompt_index("Scelta", len(presets) + 1, default=1)
+    print(f"  {len(presets) + 1}. Custom (only the mappings required by the current interface)")
+    choice = _prompt_index("Choice", len(presets) + 1, default=1)
 
     if choice == len(presets) + 1:
         template = load_configuration(DEFAULT_TEMPLATE)
@@ -338,35 +343,35 @@ def _choose_template(template_path: Path | None) -> dict[str, Any]:
 
 
 def _validate_template_shape(template: dict[str, Any]) -> None:
-    """Rifiuta template incompleti prima di iniziare la procedura interattiva."""
+    """Reject incomplete templates before starting the interactive setup."""
     database = template.get("database")
     if not isinstance(database, dict):
-        raise ConfigurationError("Il template deve contenere un oggetto 'database'.")
+        raise ConfigurationError("The template must contain a 'database' object.")
     database = cast(dict[str, Any], database)
     projects_value = database.get("projects")
     if not isinstance(projects_value, list) or not projects_value:
-        raise ConfigurationError("Il template deve contenere almeno un progetto.")
+        raise ConfigurationError("The template must contain at least one project.")
     projects = cast(list[Any], projects_value)
     first_project_value = projects[0]
     if not isinstance(first_project_value, dict):
-        raise ConfigurationError("Il primo progetto del template deve essere un oggetto.")
+        raise ConfigurationError("The first project in the template must be an object.")
     first_project = cast(dict[str, Any], first_project_value)
     if not isinstance(first_project.get("mapping", {}), dict):
-        raise ConfigurationError("Il mapping del primo progetto deve essere un oggetto.")
+        raise ConfigurationError("The first project's mapping must be an object.")
 
 
 def _choose_project_template(template: dict[str, Any]) -> dict[str, Any]:
-    """Seleziona il primo progetto del template come base per la nuova configurazione."""
+    """Select the template's first project as the basis for the new configuration."""
     database_value = template.get("database")
     if not isinstance(database_value, dict):
-        raise ConfigurationError("Il template non contiene una sezione database valida.")
+        raise ConfigurationError("The template does not contain a valid database section.")
     database = cast(dict[str, Any], database_value)
     projects_value = database.get("projects", [])
     if not isinstance(projects_value, list):
-        raise ConfigurationError("database.projects deve essere una lista.")
+        raise ConfigurationError("database.projects must be a list.")
     projects = cast(list[Any], projects_value)
     if not projects or not isinstance(projects[0], dict):
-        raise ConfigurationError("Il template deve contenere almeno un database.projects.")
+        raise ConfigurationError("The template must contain at least one database.projects entry.")
     return copy.deepcopy(cast(dict[str, Any], projects[0]))
 
 
@@ -375,10 +380,10 @@ def _configure_mappings(
     inspector: Any,
     schema: str,
 ) -> tuple[dict[str, dict[str, str]], list[str]]:
-    """Lascia confermare i mapping del preset o li sostituisce con colonne reali."""
+    """Let the user confirm preset mappings or replace them with actual columns."""
     tables = sorted(inspector.get_table_names(schema=schema))
     if not tables:
-        raise ConfigurationError(f"Lo schema '{schema}' non contiene tabelle.")
+        raise ConfigurationError(f"Schema '{schema}' contains no tables.")
 
     mappings: dict[str, dict[str, str]] = {}
     summary_fields: list[str] = []
@@ -396,9 +401,9 @@ def _configure_mappings(
         default_column = default_column_value if isinstance(default_column_value, str) else None
         required = field_name in REQUIRED_MAPPING_FIELDS
 
-        print(f"\nMapping del concetto Nawia '{field_name}'")
+        print(f"\nMapping for Nawia concept '{field_name}'")
         selected_table = _choose_from_list(
-            "Tabella",
+            "Table",
             tables,
             default=default_table if default_table in tables else None,
             optional=not required,
@@ -411,13 +416,13 @@ def _configure_mappings(
             for column in inspector.get_columns(selected_table, schema=schema)
         )
         selected_column = _choose_from_list(
-            "Colonna",
+            "Column",
             columns,
             default=default_column if default_column in columns else None,
             optional=False,
         )
         if selected_column is None:
-            raise ConfigurationError(f"Non e' stata selezionata una colonna per '{field_name}'.")
+            raise ConfigurationError(f"No column was selected for '{field_name}'.")
         mappings[field_name] = {
             "base_table": selected_table,
             "column_name": selected_column,
@@ -426,30 +431,30 @@ def _configure_mappings(
     while _prompt_yes_no("\nVuoi aggiungere un altro campo personalizzato?", default=False):
         field_name = _prompt_text("Nome del concetto (es. extraction_batch)")
         if not re.fullmatch(r"[a-z][a-z0-9_]*", field_name):
-            print("Usa solo lettere minuscole, numeri e underscore; il nome deve iniziare con una lettera.")
+            print("Use only lowercase letters, numbers, and underscores; the name must start with a letter.")
             continue
         if field_name in mappings:
-            print(f"Il mapping '{field_name}' esiste gia'.")
+            print(f"Mapping '{field_name}' already exists.")
             continue
 
-        table = _choose_from_list("Tabella", tables)
+        table = _choose_from_list("Table", tables)
         if table is None:
-            raise ConfigurationError("Non e' stata selezionata una tabella.")
+            raise ConfigurationError("No table was selected.")
         columns = sorted(
             column["name"] for column in inspector.get_columns(table, schema=schema)
         )
-        column = _choose_from_list("Colonna", columns)
+        column = _choose_from_list("Column", columns)
         if column is None:
-            raise ConfigurationError("Non e' stata selezionata una colonna.")
+            raise ConfigurationError("No column was selected.")
         mappings[field_name] = {"base_table": table, "column_name": column}
-        if _prompt_yes_no("Includere questo campo nel riepilogo individuale?", default=False):
+        if _prompt_yes_no("Include this field in the individual summary?", default=False):
             summary_fields.append(field_name)
 
     return mappings, summary_fields
 
 
 def _choose_schema(inspector: Any, template: dict[str, Any]) -> str:
-    """Mostra gli schemi che contengono tabelle e propone quello del template."""
+    """Show schemas containing tables and suggest the template's schema."""
     system_schemas = {"information_schema", "pg_catalog"}
     schemas = [
         schema
@@ -458,20 +463,20 @@ def _choose_schema(inspector: Any, template: dict[str, Any]) -> str:
     ]
     schemas.sort()
     if not schemas:
-        raise ConfigurationError("Non sono stati trovati schemi utente con tabelle.")
+        raise ConfigurationError("No user schemas containing tables were found.")
 
     database = cast(dict[str, Any], template["database"])
     projects = cast(list[dict[str, Any]], database["projects"])
     preferred_value = projects[0].get("schema_name")
     preferred = preferred_value if isinstance(preferred_value, str) else None
-    print("\nSchemi disponibili:")
+    print("\nAvailable schemas:")
     selected_schema = _choose_from_list(
         "Schema",
         schemas,
         default=preferred if preferred in schemas else None,
     )
     if selected_schema is None:
-        raise ConfigurationError("Non e' stato selezionato uno schema.")
+        raise ConfigurationError("No schema was selected.")
     return selected_schema
 
 
@@ -481,7 +486,7 @@ def _choose_from_list(
     default: str | None = None,
     optional: bool = False,
 ) -> str | None:
-    """Fa scegliere una voce numerata, con scelta predefinita e opzione facoltativa."""
+    """Prompt for a numbered choice, with a default and an optional skip."""
     if not choices:
         raise ConfigurationError(f"Nessuna opzione disponibile per '{label}'.")
 
@@ -491,11 +496,11 @@ def _choose_from_list(
         suffix = " (preset)" if index == default_index else ""
         print(f"  {index}. {choice}{suffix}")
     if optional:
-        print("  0. Non mappare questo campo")
+        print("  0. Do not map this field")
 
     while True:
         answer = input(
-            f"Scelta [{default_index if default_index is not None else ''}]: "
+            f"Choice [{default_index if default_index is not None else ''}]: "
         ).strip()
         if not answer and default_index is not None:
             return choices[default_index - 1]
@@ -503,11 +508,11 @@ def _choose_from_list(
             return None
         if answer.isdigit() and 1 <= int(answer) <= len(choices):
             return choices[int(answer) - 1]
-        print("Inserisci il numero di una delle opzioni elencate.")
+        print("Enter the number of one of the listed options.")
 
 
 def _prompt_text(label: str, default: str | None = None) -> str:
-    """Legge un testo non vuoto, usando il default se l'utente preme Invio."""
+    """Read non-empty text, using the default if the user presses Enter."""
     while True:
         suffix = f" [{default}]" if default else ""
         answer = input(f"{label}{suffix}: ").strip()
@@ -515,32 +520,32 @@ def _prompt_text(label: str, default: str | None = None) -> str:
             return answer
         if default:
             return str(default)
-        print("Questo valore e' obbligatorio.")
+        print("This value is required.")
 
 
 def _prompt_index(label: str, maximum: int, default: int) -> int:
-    """Legge un numero compreso tra 1 e il massimo mostrato."""
+    """Read a number between 1 and the displayed maximum."""
     while True:
         answer = input(f"{label} [{default}]: ").strip()
         if not answer:
             return default
         if answer.isdigit() and 1 <= int(answer) <= maximum:
             return int(answer)
-        print(f"Inserisci un numero tra 1 e {maximum}.")
+        print(f"Enter a number between 1 and {maximum}.")
 
 
 def _prompt_yes_no(label: str, default: bool) -> bool:
-    """Legge una risposta si/no e permette di accettare il default con Invio."""
+    """Read a yes/no answer and allow the default by pressing Enter."""
     suffix = "Y/n" if default else "y/N"
     while True:
         answer = input(f"{label} [{suffix}]: ").strip().lower()
         if not answer:
             return default
-        if answer in {"y", "yes", "s", "si", "sì"}:
+        if answer in {"y", "yes"}:
             return True
         if answer in {"n", "no"}:
             return False
-        print("Rispondi y o n.")
+        print("Answer y or n.")
 
 
 def _connect_and_inspect(
@@ -548,18 +553,18 @@ def _connect_and_inspect(
     username: str,
     password: str,
 ) -> tuple[Any, Any]:
-    """Apre una connessione PostgreSQL e restituisce engine e inspector SQLAlchemy."""
+    """Open a PostgreSQL connection and return the SQLAlchemy engine and inspector."""
     try:
         from sqlalchemy import URL, create_engine, inspect, text
         from sqlalchemy.exc import SQLAlchemyError
     except ImportError as error:
         raise ConfigurationError(
-            "SQLAlchemy non e' installato. Installa le dipendenze del progetto con 'pip install .'."
+            "SQLAlchemy is not installed. Install the project dependencies with 'pip install .'."
         ) from error
 
     database_type = str(database.get("type", "postgresql")).lower()
     if database_type not in {"postgresql", "postgres"}:
-        raise ConfigurationError("Il test di connessione supporta al momento solo PostgreSQL.")
+        raise ConfigurationError("Connection testing currently supports PostgreSQL only.")
 
     url = URL.create(
         "postgresql+psycopg2",
@@ -573,7 +578,7 @@ def _connect_and_inspect(
         engine = create_engine(url)
     except ImportError as error:
         raise ConfigurationError(
-            "Il driver PostgreSQL non e' installato. Installa le dipendenze del progetto con 'pip install .'."
+            "The PostgreSQL driver is not installed. Install the project dependencies with 'pip install .'."
         ) from error
     except SQLAlchemyError as error:
         raise ConfigurationError(
@@ -587,18 +592,18 @@ def _connect_and_inspect(
     except ImportError as error:
         engine.dispose()
         raise ConfigurationError(
-            "Il driver PostgreSQL non e' installato. Installa le dipendenze del progetto con 'pip install .'."
+            "The PostgreSQL driver is not installed. Install the project dependencies with 'pip install .'."
         ) from error
     except SQLAlchemyError as error:
         engine.dispose()
         raise ConfigurationError(
-            f"Connessione al database non riuscita ({type(error).__name__}). "
-            "Controlla host, porta, nome database, credenziali e accesso di rete."
+            f"Database connection failed ({type(error).__name__}). "
+            "Check the host, port, database name, credentials, and network access."
         ) from error
     return engine, inspector
 
 
 def _fail(message: str) -> NoReturn:
-    """Stampa un errore CLI leggibile e termina con un codice diverso da zero."""
-    print(f"Errore: {message}", file=sys.stderr)
+    """Print a readable CLI error and exit with a non-zero status."""
+    print(f"Error: {message}", file=sys.stderr)
     raise SystemExit(1)
