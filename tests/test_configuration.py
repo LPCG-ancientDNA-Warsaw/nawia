@@ -1,5 +1,6 @@
 import json
 import os
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -10,6 +11,7 @@ from nawia.configuration import (
     _shortest_path_count,
     default_configuration_path,
     find_project,
+    packaged_configuration_path,
     save_configuration,
     validate_configuration,
     validate_project_schema,
@@ -130,6 +132,12 @@ class ConfigurationTests(unittest.TestCase):
                 patch("nawia.configuration.Path.cwd", return_value=Path(directory)),
             ):
                 self.assertEqual(default_configuration_path(), working_path)
+
+    def test_packaged_configuration_is_available_as_a_seed(self):
+        self.assertEqual(
+            packaged_configuration_path(),
+            Path(sys.prefix) / "config.json",
+        )
 
     def test_valid_configuration_has_no_structural_errors(self):
         self.assertEqual(validate_configuration(make_configuration()), [])

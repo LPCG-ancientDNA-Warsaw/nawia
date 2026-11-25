@@ -1,4 +1,5 @@
 README.md
+config.json
 pyproject.toml
 nawia/__init__.py
 nawia/app_streamlit.py

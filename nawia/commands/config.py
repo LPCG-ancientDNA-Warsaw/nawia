@@ -13,6 +13,7 @@ from nawia.configuration import (
     default_configuration_path,
     find_project,
     load_configuration,
+    packaged_configuration_path,
     save_configuration,
     validate_configuration,
     validate_project_schema,
@@ -364,7 +365,20 @@ def run_edit(args):
     try:
         original = load_configuration(config_path)
     except ConfigurationError as error:
-        _fail(str(error))
+        packaged_config = packaged_configuration_path()
+        if (
+            config_path == DEFAULT_CONFIG
+            and not config_path.exists()
+            and packaged_config.is_file()
+        ):
+            try:
+                original = load_configuration(packaged_config)
+                save_configuration(original, config_path)
+            except ConfigurationError as setup_error:
+                _fail(str(setup_error))
+            print(f"Copied the bundled configuration to: {config_path.resolve()}")
+        else:
+            _fail(str(error))
 
     existing_errors = validate_configuration(original)
     if existing_errors:

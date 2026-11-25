@@ -55,6 +55,30 @@ def make_configuration():
 
 
 class ConfigurationEditTests(unittest.TestCase):
+    def test_edit_copies_bundled_config_to_user_path_when_missing(self):
+        seed = make_configuration()
+        with tempfile.TemporaryDirectory() as directory:
+            config_path = Path(directory) / "config.json"
+            seed_path = Path(directory) / "packaged-config.json"
+            seed_path.write_text(json.dumps(seed), encoding="utf-8")
+            output = StringIO()
+
+            with (
+                patch("nawia.commands.config.DEFAULT_CONFIG", config_path),
+                patch(
+                    "nawia.commands.config.packaged_configuration_path",
+                    return_value=seed_path,
+                ),
+                patch("builtins.input", return_value="0"),
+                redirect_stdout(output),
+            ):
+                run_edit(SimpleNamespace(config=config_path))
+
+            copied = json.loads(config_path.read_text(encoding="utf-8"))
+
+        self.assertEqual(copied, seed)
+        self.assertIn("Copied the bundled configuration", output.getvalue())
+
     def test_editing_connection_preserves_other_sections_and_creates_backup(self):
         original = make_configuration()
         with tempfile.TemporaryDirectory() as directory:

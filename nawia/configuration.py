@@ -50,6 +50,11 @@ def default_configuration_path() -> Path:
     return base_path / "nawia" / "config.json"
 
 
+def packaged_configuration_path() -> Path:
+    """Return the default config shipped at the Python environment root."""
+    return Path(sys.prefix) / "config.json"
+
+
 def _as_string_keyed_mapping(value):
     """
     Recognises if an element is of Mapping type or not.
