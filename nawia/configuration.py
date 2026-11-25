@@ -667,8 +667,7 @@ def save_configuration(config, path, overwrite = False):
         if not overwrite:
             raise ConfigurationError(
                 f"The file {path} already exists. Use --force to overwrite it.")
-        try:
-            backup_path = _create_configuration_backup(path)
+        backup_path = _create_configuration_backup(path)
 
     temporary_path = None
     try:
