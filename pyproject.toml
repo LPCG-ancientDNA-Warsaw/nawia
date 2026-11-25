@@ -14,3 +14,6 @@ nawia = "nawia.cli:main"
 
 [tool.setuptools]
 packages = ["nawia", "nawia.commands"]
+
+[tool.setuptools.data-files]
+templates = ["templates/default_config.json"]

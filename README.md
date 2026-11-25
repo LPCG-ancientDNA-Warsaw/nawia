@@ -62,6 +62,8 @@ Nawia reads database and project settings from `config.json`. Copy or adapt `tem
 
 `config.json` contains the database address and one or more project configurations. Database credentials are requested when connecting and are not saved in this file.
 
+Nawia resolves the config path in this order: the `NAWIA_CONFIG` environment variable, an existing `config.json` in the current directory, an existing config beside the installed package, then the per-user config directory (on Linux, `~/.config/nawia/config.json`). Set `NAWIA_CONFIG` to use a specific file consistently from the CLI and web interface. `config edit`, `config validate`, and `config test` also accept `--config`; `config init` accepts `--output`.
+
 The CLI can guide configuration setup and check it before Nawia is used:
 
 ```bash

@@ -15,4 +15,6 @@ nawia/commands/config.py
 nawia/commands/eager_helper.py
 nawia/commands/parse_folder.py
 nawia/commands/web_interface.py
+templates/default_config.json
 tests/test_configuration.py
+tests/test_configuration_cli.py

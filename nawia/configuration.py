@@ -4,6 +4,7 @@ import json
 import os
 import re
 import shutil
+import sys
 import tempfile
 from pathlib import Path
 from typing import Any, Mapping, cast
@@ -21,6 +22,33 @@ class ConfigurationError(ValueError):
     """
     Display error messages during configuration.
     """
+
+
+def default_configuration_path() -> Path:
+    """Return the active config path, honoring explicit and existing local configs."""
+    configured_path = os.environ.get("NAWIA_CONFIG", "").strip()
+    if configured_path:
+        return Path(configured_path).expanduser()
+
+    working_directory_config = Path.cwd() / "config.json"
+    if working_directory_config.is_file():
+        return working_directory_config
+
+    package_config = Path(__file__).resolve().parent.parent / "config.json"
+    if package_config.is_file():
+        return package_config
+
+    if os.name == "nt":
+        app_data = os.environ.get("APPDATA")
+        if app_data:
+            return Path(app_data).expanduser() / "Nawia" / "config.json"
+    elif sys.platform == "darwin":
+        return Path.home() / "Library" / "Application Support" / "Nawia" / "config.json"
+
+    config_home = os.environ.get("XDG_CONFIG_HOME")
+    base_path = Path(config_home).expanduser() if config_home else Path.home() / ".config"
+    return base_path / "nawia" / "config.json"
+
 
 def _as_string_keyed_mapping(value):
     """
@@ -55,7 +83,7 @@ def load_configuration(path):
             config = json.load(config_file)
     
     except FileNotFoundError as error:
-        raise ConfigurationError(f"Configurationn file not found: {path}") from error
+        raise ConfigurationError(f"Configuration file not found: {path}") from error
     
     except json.JSONDecodeError as error:
         raise ConfigurationError(

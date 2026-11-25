@@ -10,6 +10,7 @@ from typing import Any, NoReturn, cast
 from nawia.configuration import (
     ConfigurationError,
     REQUIRED_MAPPING_FIELDS,
+    default_configuration_path,
     find_project,
     load_configuration,
     save_configuration,
@@ -19,8 +20,10 @@ from nawia.configuration import (
 
 
 ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_CONFIG = ROOT / "config.json"
+DEFAULT_CONFIG = default_configuration_path()
 DEFAULT_TEMPLATE = ROOT / "templates" / "default_config.json"
+if not DEFAULT_TEMPLATE.is_file():
+    DEFAULT_TEMPLATE = Path(sys.prefix) / "templates" / "default_config.json"
 PRESET_DIRECTORY = ROOT / "templates" / "config_presets"
 
 # To do: add more presets. Human, mammals, multispecies, etc...

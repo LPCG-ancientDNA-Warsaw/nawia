@@ -1,11 +1,14 @@
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from nawia.configuration import (
     ConfigurationError,
     _shortest_path_count,
+    default_configuration_path,
     find_project,
     save_configuration,
     validate_configuration,
@@ -108,6 +111,26 @@ class FakeInspector:
 
 
 class ConfigurationTests(unittest.TestCase):
+    def test_explicit_config_environment_path_takes_precedence(self):
+        with tempfile.TemporaryDirectory() as directory:
+            explicit_path = Path(directory) / "custom.json"
+            with patch.dict(
+                os.environ,
+                {"NAWIA_CONFIG": str(explicit_path)},
+                clear=True,
+            ):
+                self.assertEqual(default_configuration_path(), explicit_path)
+
+    def test_existing_working_directory_config_is_used(self):
+        with tempfile.TemporaryDirectory() as directory:
+            working_path = Path(directory) / "config.json"
+            working_path.write_text("{}", encoding="utf-8")
+            with (
+                patch.dict(os.environ, {}, clear=True),
+                patch("nawia.configuration.Path.cwd", return_value=Path(directory)),
+            ):
+                self.assertEqual(default_configuration_path(), working_path)
+
     def test_valid_configuration_has_no_structural_errors(self):
         self.assertEqual(validate_configuration(make_configuration()), [])
 

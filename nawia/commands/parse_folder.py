@@ -2,6 +2,7 @@ import os
 import re
 import json
 from nawia.db_manager import LabDatabase
+from nawia.configuration import default_configuration_path
 
 try:
     import pysam
@@ -11,9 +12,9 @@ except ImportError:
 def get_user_config(user):
     """Get REGEX for each user"""
 
-    config_path = os.path.join(os.path.dirname(__file__), "..", "config.json")
+    config_path = default_configuration_path()
     try:
-        with open(config_path, 'r') as f:
+        with open(config_path, 'r', encoding='utf-8-sig') as f:
             configs = json.load(f)
         return configs.get(user, {}).get("regex")
     except FileNotFoundError:

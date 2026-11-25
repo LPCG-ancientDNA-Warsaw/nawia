@@ -37,6 +37,7 @@ from sqlalchemy.exc import OperationalError as SQLAlchemyOperationalError
 
 from nawia.configuration import (
     ConfigurationError,
+    default_configuration_path,
     save_configuration,
     validate_configuration,
     validate_project_schema,
@@ -995,7 +996,7 @@ def configuration_view():
     """
     st.title("⚙️ Configuration")
 
-    config_path = Path(__file__).resolve().parent.parent / "config.json"
+    config_path = default_configuration_path()
     try:
         with config_path.open("r", encoding="utf-8-sig") as config_file:
             config = json.load(config_file)

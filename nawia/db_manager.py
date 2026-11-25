@@ -11,6 +11,7 @@ from datetime import datetime
 import json
 from pathlib import Path
 import io
+from nawia.configuration import default_configuration_path
 
 class LabDatabase:
     """This class defines what a Database is.
@@ -57,8 +58,7 @@ class LabDatabase:
     """
 
     def __init__(self, user, password):
-        # Obtain the path of the file config.json
-        config_path = Path(__file__).resolve().parent.parent / 'config.json'
+        config_path = default_configuration_path()
 
         # Obtain information from config.json
         with open(config_path, 'r', encoding = 'utf-8') as f:
