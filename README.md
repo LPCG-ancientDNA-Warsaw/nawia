@@ -35,7 +35,17 @@ Python 3.11 or later is recommended. Install Nawia:
 
 ```bash
 python -m pip install --upgrade pip
-pip install git+https://github.com/path/to/Nawia .
+pip install git+https://github.com/LPCG-ancientDNA-Warsaw/nawia.git
+```
+
+You may encounter this error while trying to install it: "error: externally-managed-environment × This environment is externally managed". To avoid this, create a virtual python environment where you will install pip and Nawia, by doing:
+
+```bash
+python3 -m venv --without-pip ~/venv
+curl -O https://bootstrap.pypa.io/get-pip.py
+~/venv/bin/python ~/get-pip.py
+~/venv/bin/python -m pip install git+https://github.com/LPCG-ancientDNA-Warsaw/nawia.git
+source ~/venv/bin/activate
 ```
 
 ## Configuration
