@@ -124,7 +124,7 @@
             "join_on": "site_name"
           },
           "indexing": {
-            "parent": "sequencing_run",
+            "parent": "sequencing_runs",
             "join_on": "sequencing_id"
           }
         },
