@@ -37,6 +37,8 @@ from sqlalchemy.exc import OperationalError as SQLAlchemyOperationalError
 
 from nawia.configuration import (
     ConfigurationError,
+    backup_root_path,
+    default_data_directory,
     default_configuration_path,
     save_configuration,
     validate_configuration,
@@ -314,9 +316,9 @@ def get_backup_files(path, extension):
     return sorted(files, key=os.path.getctime, reverse=True)
 
 ########################################## Initial page #################################################
-base = Path(__file__).resolve().parent.parent
-logo = base / "static" / "LPiGK_transparent.png"
-page_icon = base / "static" / "transparent_LPCG_logo.png"
+resources_dir = Path(__file__).resolve().parent / "resources"
+logo = resources_dir / "static" / "LPiGK_transparent.png"
+page_icon = resources_dir / "static" / "transparent_LPCG_logo.png"
 
 st.set_page_config(page_title = "Nawia: Lab Database Portal", layout = "wide", page_icon = page_icon)
 st.logo(logo, size = "large", icon_image = page_icon)
@@ -472,10 +474,8 @@ def upload_data():
     st.subheader("Upload Excel")
     st.write(f"Active project: {selected_project} (schema: **{selected_schema}**).")
 
-    # Where are the templates?
-    templates_dir = Path(__file__).resolve().parent.parent / "templates"
-    # Create the folder if it doesn't exist
-    templates_dir.mkdir(exist_ok=True)
+    templates_dir = default_data_directory() / "templates"
+    templates_dir.mkdir(parents=True, exist_ok=True)
     # We save one template for each schema
     template_path = templates_dir / f"{selected_schema}_excel_upload.xlsx"
 
@@ -500,7 +500,7 @@ def upload_data():
     with col2:
         if st.button("Regenerate Template", help="Click to refresh template if new columns/tables were added to DB"):
             with st.spinner("Updating template..."):
-                db.generate_excel_template(template_path, schema=selected_schema, project=selected_project)
+                db.generate_excel_template(schema=selected_schema, project=selected_project)
                 st.success("Template updated!")
                 st.rerun()
     st.divider()
@@ -571,18 +571,8 @@ def backup():
         (p for p in db.config["database"]["projects"] if p["name"] == selected_project),
             None)
     
-    # The backup path is resolved relative to the directory containing config.json.
-    config_dir = Path(__file__).resolve().parent.parent
     configured_path = project_config.get("backups_path")
-
-    # If the user provides a custom backup path...
-    if configured_path and str(configured_path).strip():
-        backup_root = Path(str(configured_path).strip()).expanduser()
-        if not backup_root.is_absolute():
-            backup_root = config_dir / backup_root
-    # If not, use the "internal" backup path
-    else:
-        backup_root = config_dir / "backups"
+    backup_root = backup_root_path(configured_path)
 
     # Daily backups directory
     daily_dir = backup_root / "daily" / f"{selected_schema}"

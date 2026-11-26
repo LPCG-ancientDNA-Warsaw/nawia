@@ -13,8 +13,17 @@ dependencies = [
 nawia = "nawia.cli:main"
 
 [tool.setuptools]
-packages = ["nawia", "nawia.commands"]
+include-package-data = true
 
-[tool.setuptools.data-files]
-"." = ["config.json"]
-templates = ["templates/default_config.json"]
+[tool.setuptools.packages.find]
+include = ["nawia*"]
+namespaces = true
+
+[tool.setuptools.package-data]
+nawia = [
+    "resources/config.json",
+    "resources/templates/*",
+    "resources/templates/config_presets/*.json",
+    "resources/static/*",
+    "resources/sql/*",
+]

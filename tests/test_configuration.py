@@ -1,6 +1,5 @@
 import json
 import os
-import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -9,6 +8,8 @@ from unittest.mock import patch
 from nawia.configuration import (
     ConfigurationError,
     _shortest_path_count,
+    backup_root_path,
+    default_data_directory,
     default_configuration_path,
     find_project,
     packaged_configuration_path,
@@ -134,10 +135,48 @@ class ConfigurationTests(unittest.TestCase):
                 self.assertEqual(default_configuration_path(), working_path)
 
     def test_packaged_configuration_is_available_as_a_seed(self):
-        self.assertEqual(
-            packaged_configuration_path(),
-            Path(sys.prefix) / "config.json",
+        packaged_config = packaged_configuration_path()
+        self.assertTrue(packaged_config.is_file())
+        self.assertEqual(packaged_config.parent.name, "resources")
+        self.assertTrue(
+            (packaged_config.parent / "templates" / "default_config.json").is_file()
         )
+
+    def test_missing_active_config_uses_user_path_not_packaged_resource(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            working_directory = root / "work"
+            working_directory.mkdir()
+            with (
+                patch.dict(os.environ, {}, clear=True),
+                patch("nawia.configuration.Path.cwd", return_value=working_directory),
+                patch("nawia.configuration.Path.home", return_value=root),
+            ):
+                config_path = default_configuration_path()
+
+        self.assertNotEqual(config_path, packaged_configuration_path())
+        self.assertNotEqual(config_path.parent.name, "resources")
+
+    def test_relative_backup_path_is_based_on_active_config_directory(self):
+        with tempfile.TemporaryDirectory() as directory:
+            config_path = Path(directory) / "settings" / "config.json"
+            with patch(
+                "nawia.configuration.default_configuration_path",
+                return_value=config_path,
+            ):
+                backup_path = backup_root_path("archives")
+
+        self.assertEqual(backup_path, config_path.parent / "archives")
+
+    def test_default_backup_path_uses_user_data_directory(self):
+        user_data = Path("user-data")
+        with patch(
+            "nawia.configuration.default_data_directory",
+            return_value=user_data,
+        ):
+            backup_path = backup_root_path()
+
+        self.assertEqual(backup_path, user_data / "backups")
 
     def test_valid_configuration_has_no_structural_errors(self):
         self.assertEqual(validate_configuration(make_configuration()), [])

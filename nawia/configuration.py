@@ -34,10 +34,6 @@ def default_configuration_path() -> Path:
     if working_directory_config.is_file():
         return working_directory_config
 
-    package_config = Path(__file__).resolve().parent.parent / "config.json"
-    if package_config.is_file():
-        return package_config
-
     if os.name == "nt":
         app_data = os.environ.get("APPDATA")
         if app_data:
@@ -50,9 +46,36 @@ def default_configuration_path() -> Path:
     return base_path / "nawia" / "config.json"
 
 
+def default_data_directory() -> Path:
+    """Return Nawia's writable per-user data directory."""
+    if os.name == "nt":
+        app_data = os.environ.get("LOCALAPPDATA") or os.environ.get("APPDATA")
+        if app_data:
+            return Path(app_data).expanduser() / "Nawia"
+        return Path.home() / "AppData" / "Local" / "Nawia"
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Application Support" / "Nawia"
+
+    data_home = os.environ.get("XDG_DATA_HOME")
+    base_path = Path(data_home).expanduser() if data_home else Path.home() / ".local" / "share"
+    return base_path / "nawia"
+
+
+def backup_root_path(configured_path: str | os.PathLike[str] | None = None) -> Path:
+    """Resolve a configured backup path or use Nawia's writable data directory."""
+    configured_value = str(configured_path).strip() if configured_path is not None else ""
+    if configured_value:
+        backup_root = Path(configured_value).expanduser()
+        if not backup_root.is_absolute():
+            backup_root = default_configuration_path().expanduser().resolve().parent / backup_root
+        return backup_root
+
+    return default_data_directory() / "backups"
+
+
 def packaged_configuration_path() -> Path:
-    """Return the default config shipped at the Python environment root."""
-    return Path(sys.prefix) / "config.json"
+    """Return the default configuration bundled inside the Nawia package."""
+    return Path(__file__).resolve().parent / "resources" / "config.json"
 
 
 def _as_string_keyed_mapping(value):

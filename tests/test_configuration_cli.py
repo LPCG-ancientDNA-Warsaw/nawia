@@ -97,6 +97,7 @@ class ConfigurationEditTests(unittest.TestCase):
             updated = json.loads(path.read_text(encoding="utf-8"))
             backup = json.loads(path.with_suffix(".json.bak").read_text(encoding="utf-8"))
             previous_backup = path.with_suffix(".json.bak.1")
+            previous_backup_content = previous_backup.read_text(encoding="utf-8")
 
         self.assertEqual(updated["database"]["host"], "db.example.edu")
         self.assertEqual(updated["database"]["port"], "22103")
@@ -104,7 +105,7 @@ class ConfigurationEditTests(unittest.TestCase):
         self.assertEqual(updated["database"]["projects"], original["database"]["projects"])
         self.assertEqual(backup, original)
         self.assertEqual(
-            previous_backup.read_text(encoding="utf-8"),
+            previous_backup_content,
             "previous backup",
         )
         self.assertIn("WARNING: Changing these settings", output.getvalue())

@@ -1,5 +1,4 @@
 README.md
-config.json
 pyproject.toml
 nawia/__init__.py
 nawia/app_streamlit.py
@@ -16,6 +15,15 @@ nawia/commands/config.py
 nawia/commands/eager_helper.py
 nawia/commands/parse_folder.py
 nawia/commands/web_interface.py
-templates/default_config.json
+nawia/resources/config.json
+nawia/resources/sql/schema.sql
+nawia/resources/sql/seed_test.sql
+nawia/resources/static/LPiGK.jpg
+nawia/resources/static/LPiGK_transparent.png
+nawia/resources/static/transparent_LPCG_logo.png
+nawia/resources/templates/default_config.json
+nawia/resources/templates/default_excel_upload.xlsx
+nawia/resources/templates/default_schema.sql
+nawia/resources/templates/lab_data_excel_upload.xlsx
 tests/test_configuration.py
 tests/test_configuration_cli.py

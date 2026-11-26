@@ -20,12 +20,10 @@ from nawia.configuration import (
 )
 
 
-ROOT = Path(__file__).resolve().parents[2]
+PACKAGE_RESOURCES = Path(__file__).resolve().parents[1] / "resources"
 DEFAULT_CONFIG = default_configuration_path()
-DEFAULT_TEMPLATE = ROOT / "templates" / "default_config.json"
-if not DEFAULT_TEMPLATE.is_file():
-    DEFAULT_TEMPLATE = Path(sys.prefix) / "templates" / "default_config.json"
-PRESET_DIRECTORY = ROOT / "templates" / "config_presets"
+DEFAULT_TEMPLATE = PACKAGE_RESOURCES / "templates" / "default_config.json"
+PRESET_DIRECTORY = PACKAGE_RESOURCES / "templates" / "config_presets"
 
 # To do: add more presets. Human, mammals, multispecies, etc...
 # To do: add the possibility of adding new projects without messing up the initialized one.

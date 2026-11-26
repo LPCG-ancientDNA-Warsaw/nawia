@@ -11,3 +11,4 @@ settings.json
 !default*xlsx
 !*_upload.xlsx
 *.pyc
+build/

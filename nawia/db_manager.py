@@ -11,7 +11,11 @@ from datetime import datetime
 import json
 from pathlib import Path
 import io
-from nawia.configuration import default_configuration_path
+from nawia.configuration import (
+    backup_root_path,
+    default_data_directory,
+    default_configuration_path,
+)
 
 class LabDatabase:
     """This class defines what a Database is.
@@ -949,7 +953,8 @@ class LabDatabase:
         inspector = inspect(self.engine)
         tables = inspector.get_table_names(schema=schema)
 
-        output_path = Path(__file__).resolve().parent.parent / "templates" / f"{schema}_excel_upload.xlsx"
+        output_path = default_data_directory() / "templates" / f"{schema}_excel_upload.xlsx"
+        output_path.parent.mkdir(parents=True, exist_ok=True)
 
         with pd.ExcelWriter(output_path, engine='openpyxl') as writer:
             for table in tables:
@@ -1086,21 +1091,12 @@ class LabDatabase:
             None
         )
 
-        # Define the internal backup path
-        internal_backups_path = Path(__file__).resolve().parent.parent / "backups"
-
         # If the user provides a different backup path, use that one
         configured_backups_path = (
             project_config.get("backups_path") if project_config else None
         )
-        
-        if configured_backups_path and str(configured_backups_path).strip():
-            backup_root = Path(str(configured_backups_path).strip()).expanduser()
-            if not backup_root.is_absolute():
-                backup_root = Path(__file__).resolve().parent.parent / backup_root
-            backups_dir = backup_root / "daily" / f"{schema}"
-        else:
-            backups_dir = internal_backups_path / "daily" / f"{schema}"
+        backup_root = backup_root_path(configured_backups_path)
+        backups_dir = backup_root / "daily" / f"{schema}"
 
         # Make a "daily" folder if not already existent. It is always present when using the internal backup path.
         backups_dir.mkdir(parents=True, exist_ok=True)
@@ -1309,19 +1305,9 @@ class LabDatabase:
         if project_config is None:
             raise ValueError(f"No configured project found for schema: {schema}")
 
-        # The backup path is resolved relative to the directory containing config.json.
-        config_dir = Path(__file__).resolve().parent.parent
         configured_path = project_config.get("backups_path")
 
-        # If the user provides a custom backup path...
-        if configured_path and str(configured_path).strip():
-            backup_root = Path(str(configured_path).strip()).expanduser()
-            if not backup_root.is_absolute():
-                backup_root = config_dir / backup_root
-        
-        # If not, use the "internal" backup path
-        else:
-            backup_root = config_dir / "backups"
+        backup_root = backup_root_path(configured_path)
 
         # Daily backups directory
         daily_dir = backup_root / "daily" / f"{schema}"

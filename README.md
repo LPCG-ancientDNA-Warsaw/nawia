@@ -50,7 +50,7 @@ source ~/venv/bin/activate
 
 ## Configuration
 
-Nawia reads database and project settings from `config.json`. Copy or adapt `templates/default_config.json` to configure:
+Nawia reads database and project settings from `config.json`. The bundled starting configuration is `nawia/resources/templates/default_config.json`; use it as a guide to configure:
 
 - PostgreSQL database name, host, and port
 - Project names and database schemas
@@ -62,7 +62,9 @@ Nawia reads database and project settings from `config.json`. Copy or adapt `tem
 
 `config.json` contains the database address and one or more project configurations. Database credentials are requested when connecting and are not saved in this file.
 
-Nawia resolves the config path in this order: the `NAWIA_CONFIG` environment variable, an existing `config.json` in the current directory, an existing config beside the installed package, then the per-user config directory (on Linux, `~/.config/nawia/config.json`). If `config edit` finds no config at that path, it copies the bundled `config.json` there before editing. Set `NAWIA_CONFIG` to use a specific file consistently from the CLI and web interface. `config edit`, `config validate`, and `config test` also accept `--config`; `config init` accepts `--output`.
+Nawia resolves the active config path in this order: the `NAWIA_CONFIG` environment variable, an existing `config.json` in the current directory, then the per-user config directory (on Linux, `~/.config/nawia/config.json`). The bundled seed configuration is stored inside the installed package at `nawia/resources/config.json`; if `config edit` finds no active config, it copies that seed to the per-user config path before editing. Set `NAWIA_CONFIG` to use a specific file consistently from the CLI and web interface. `config edit`, `config validate`, and `config test` also accept `--config`; `config init` accepts `--output`.
+
+Bundled configuration examples, SQL files, logos, and Excel templates live under `nawia/resources/` and are included in the installed package. Nawia writes generated Excel templates and default backups to a writable per-user data directory rather than the package installation: `~/.local/share/nawia/` on Linux by default, `~/Library/Application Support/Nawia/` on macOS, or `%LOCALAPPDATA%\Nawia\` on Windows. `XDG_DATA_HOME` can override the Linux data directory. A relative project `backups_path` is resolved relative to the active configuration file.
 
 The CLI can guide configuration setup and check it before Nawia is used:
 
@@ -151,7 +153,7 @@ This is smaller than the default human-aDNA schema but is not yet a fully generi
 
 #### Default human-aDNA schema
 
-The default schema is the built-in, human-data-oriented example under `sql/schema.sql`. Its main hierarchy is:
+The default schema is the built-in, human-data-oriented example under `nawia/resources/sql/schema.sql`. Its main hierarchy is:
 
 ```text
 sampling_sites
@@ -264,6 +266,35 @@ nawia web_interface
 
 The interface will print a local URL, usually `http://localhost:8501`.
 
+#### Accessing a server-hosted interface over SSH
+
+If Nawia is installed on a university server, you can start it and forward its
+web port to your own computer in one command. Run this command in a terminal on
+your computer, replacing the example user, host, and executable path with your
+own:
+
+```bash
+ssh -t -L 8501:127.0.0.1:8501 USER@SERVER '/absolute/path/to/nawia web_interface'
+```
+
+Keep the SSH session open, then open `http://127.0.0.1:8501` in your local
+browser. Press `Ctrl+C` in the terminal when you are finished; this stops the
+remote Nawia process and closes the tunnel. If port `8501` is already in use
+on your computer, use another local port, for example
+`-L 8502:127.0.0.1:8501`, and open `http://127.0.0.1:8502`.
+
+If the server running Nawia is only reachable through a university login host,
+use OpenSSH's jump-host option:
+
+```bash
+ssh -J USER@LOGIN_HOST -t -L 8501:127.0.0.1:8501 USER@APP_HOST '/absolute/path/to/nawia web_interface'
+```
+
+This requires SSH access to the application server (directly or through the
+login host), and Nawia must already be installed and configured there. Use the
+absolute path to the `nawia` executable if it is not on the non-interactive
+SSH session's `PATH`.
+
 ### Command-line help
 
 ```bash
@@ -272,23 +303,23 @@ nawia --help
 
 ## Database setup
 
-SQL files in the `sql/` directory provide (at the moment) schema and seed material:
+SQL files bundled under `nawia/resources/sql/` provide (at the moment) schema and seed material:
 
-- `sql/schema.sql` contains the database schema
-- `sql/seed_test.sql` contains test data
+- `nawia/resources/sql/schema.sql` contains the database schema
+- `nawia/resources/sql/seed_test.sql` contains test data
 
-The idea of the schema files is to help you configure your PostgreSQL or mySQL database: you can use that file or upload your own before the first use, but please ensure that the schemas hierarchies, table names and (useful) column names referenced by `config.json` exist.
+The idea of the schema files is to help you configure your PostgreSQL or mySQL database: you can use that file or upload your own before the first use, but please ensure that the schemas hierarchies, table names and (useful) column names referenced by your active configuration exist.
 
 ## Project structure
 
 ```text
-nawia/                 Python package and Streamlit application
-sql/                   Database schema and seed SQL
-static/                Logos and interface images
-templates/             Default configuration and Excel templates
-config.json            Active database and project configuration
-pyproject.toml         Package metadata and dependencies
-Singularity.def        Singularity container recipe
+nawia/                         Python package and Streamlit application
+  resources/                   Bundled config, SQL, logos, and templates
+tests/                         Automated tests
+.github/workflows/             CI configuration
+README.md                      Documentation
+pyproject.toml                 Package metadata and dependencies
+Singularity.def                Singularity container recipe
 ```
 
 ## Development status
